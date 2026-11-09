@@ -13,6 +13,8 @@ import {
   type TerminalChoice
 } from './commands'
 import type { RunState } from './protocol'
+import { checkValue, parseGroups, resultLines, saveArgs } from './secrets'
+import { secretsSave, secretsStatus } from './secrets-cli'
 
 const HISTORY = 'history'
 const LAST_TERMINAL = 'terminal'
@@ -90,6 +92,16 @@ export default function activate(orca: OrcaWorkerApi): void {
   orca.panels.handle('run.clearHistory', async () => {
     await orca.storage.set(HISTORY, [])
     return { history: [] }
+  })
+
+  // Save a secret: the value arrives here, goes to the child's stdin, and is never stored or logged.
+  orca.panels.handle('secrets.groups', async () => ({ groups: parseGroups(await secretsStatus()) }))
+  orca.panels.handle('secrets.save', async ({ value, ...form }) => {
+    const args = saveArgs(form)
+    const result = await secretsSave(args, checkValue(value))
+    const lines = resultLines(result.code === 0 ? result.stdout : `${result.stdout}\n${result.stderr}`)
+    orca.log(`secrets save ${form.name} in ${form.group}: exit ${result.code}`)
+    return { ok: result.code === 0, lines }
   })
 
   // Palette: run the last command again in the terminal used last, without opening the panel.

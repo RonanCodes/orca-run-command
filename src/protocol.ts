@@ -24,5 +24,20 @@ declare module 'orca' {
     }
     'run.forget': { input: { command: string }; output: { history: string[] } }
     'run.clearHistory': { output: { history: string[] } }
+    /** The groups `secrets status` lists (names only). */
+    'secrets.groups': { output: { groups: string[] } }
+    /** Saves one secret with `secrets save ... --stdin`; the value goes to its stdin only. */
+    'secrets.save': {
+      input: {
+        group: string
+        name: string
+        value: string
+        title?: string
+        service?: string
+        expires?: string
+        url?: string
+      }
+      output: { ok: boolean; lines: string[] }
+    }
   }
 }

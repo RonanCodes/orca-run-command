@@ -26,6 +26,28 @@ in a terminal of the workspace you are in, without leaving the chat. Type `secre
 
 The output appears in the terminal tab, never in the panel or the chat.
 
+## Save a secret
+
+A collapsible **Save a secret** section stores a token without it ever reaching a terminal, the
+shell history, the clipboard, the plugin's storage or its logs:
+
+- **Group**: a dropdown of the groups your `secrets status` lists (names only), or **New group…**.
+- **Name**: upper case, digits and `_`, starting with a letter (`^[A-Z][A-Z0-9_]+$`), e.g.
+  `SUPABASE_FOO_TOKEN`.
+- **Secret**: a masked field.
+- **Title**, **Service**, **Expires** (`YYYY-MM-DD`) and **URL** are optional. Title defaults to
+  the name and Service to the group.
+
+**Save** runs `secrets save GROUP NAME --stdin --title … --service … [--expires …] [--url …]` from
+the plugin's worker as a child process with an argument list (no shell). The value is written to
+the child's stdin and the stream is closed: it is never in the arguments. The field empties as the
+request leaves, and the panel shows only what `secrets save` printed (the item it created and the
+sync summary, never the value).
+
+This needs a `secrets` command on your shell's `PATH` that implements `save … --stdin`. Orca is a
+GUI app, so the worker asks your login shell where `secrets` is (`$SHELL -ilc 'command -v secrets'`).
+Set `ORCA_RUN_COMMAND_SECRETS_BIN` to an absolute path to skip that lookup.
+
 ## What it keeps, and what it asks for
 
 It stores two things in the plugin's own storage: the recent commands and the id of the terminal
@@ -39,7 +61,9 @@ used last. **It never reads or stores a command's output**, and it makes no netw
 | `storage:own` | Keep the recent commands. |
 
 It runs a small worker (the `trusted-worker` profile), because only a worker may type into a
-terminal.
+terminal. **Save a secret** also uses the worker's Node process directly: it starts `secrets` (and,
+once, your login shell to find it) as child processes. That is part of the access Orca's approval
+prompt names ("runs its own code in a separate Node.js process … with your user account's access").
 
 ## Install
 
@@ -75,8 +99,10 @@ orca plugin dev watch .  # load into Orca, reload on save, stream logs
 ```
 
 `src/commands.ts` holds the pure logic (reading a command, the history, picking a terminal),
-`src/worker.ts` types into the terminal and keeps the history, `src/panel.tsx` is the panel, and
-`src/protocol.ts` types the requests between them.
+`src/secrets.ts` checks the Save a secret form and builds its arguments, `src/secrets-cli.ts` runs
+`secrets`, `src/worker.ts` answers the panel, `src/panel.tsx` is the panel, and `src/protocol.ts`
+types the requests between them. `src/node.d.ts` types the few Node APIs used, so there is no
+`package.json`.
 
 ## License
 

@@ -49,3 +49,31 @@ test('picking a recent command fills the field without running it', async () => 
   assert.equal(ran, false)
   await view.unmount()
 })
+
+test('Save a secret sends the value once and clears the field', async () => {
+  const saves: { value: string; name: string; group: string }[] = []
+  const host = mockHost({
+    requests: {
+      'run.state': () => state,
+      'secrets.groups': () => ({ groups: ['sentry', 'plugin-e2e'] }),
+      'secrets.save': (input) => {
+        saves.push(input)
+        return { ok: true, lines: ["saved 'Test' as Claude-managed/abc"] }
+      }
+    }
+  })
+  const view = await mount(panel, { host })
+  await view.toggle({ label: 'Save a secret' })
+  await view.select({ label: 'Group' }, 'plugin-e2e')
+  await view.type({ label: 'Name' }, 'PLUGIN_E2E_DUMMY_TOKEN')
+  await view.type({ label: 'Secret' }, 'tok_ABCdef0123456789xyz')
+  await view.press({ text: 'Save' })
+  assert.equal(saves.length, 1)
+  assert.equal(saves[0].value, 'tok_ABCdef0123456789xyz')
+  assert.equal(saves[0].group, 'plugin-e2e')
+  assert.equal(view.valueOf({ label: 'Secret' }), '')
+  assert.equal(view.valueOf({ label: 'Name' }), '')
+  assert.ok(!JSON.stringify(view.persisted).includes('tok_ABCdef0123456789xyz'))
+  assert.deepEqual(view.errors, [])
+  await view.unmount()
+})

@@ -3,6 +3,7 @@ import {
   atom,
   Button,
   Callout,
+  Collapsible,
   EmptyState,
   Heading,
   Input,
@@ -13,6 +14,7 @@ import {
   read,
   Row,
   Select,
+  Separator,
   set,
   Stack,
   Text,
@@ -25,6 +27,115 @@ const draft = atom('draft', '')
 const chosen = atom<string | null>('terminal', null)
 const result = atom<string | null>(null)
 const error = atom<string | null>(null)
+
+// Save a secret. The secret atom is unkeyed, so Orca never persists it, and it is cleared once sent.
+const NEW_GROUP = '__new__'
+const groups = atom<string[] | null>(null)
+const secretGroup = atom<string>('secret.group', '', { persist: 'plugin' })
+const newGroup = atom('')
+const secretName = atom('')
+const secretValue = atom('')
+const secretTitle = atom('')
+const secretService = atom('')
+const secretExpires = atom('')
+const secretUrl = atom('')
+const saving = atom(false)
+const saved = atom<{ ok: boolean; lines: string[] } | null>(null)
+const secretError = atom<string | null>(null)
+
+async function loadGroups(): Promise<void> {
+  try {
+    const answer = await plugin.request('secrets.groups', undefined, { timeoutMs: 30_000 })
+    set(groups, answer.groups)
+    if (!read(secretGroup)) set(secretGroup, answer.groups[0] ?? NEW_GROUP)
+  } catch (err) {
+    set(groups, [])
+    set(secretError, (err as Error).message)
+  }
+}
+
+async function saveSecret(): Promise<void> {
+  set(secretError, null)
+  set(saved, null)
+  const group = read(secretGroup) === NEW_GROUP ? read(newGroup) : read(secretGroup)
+  const value = read(secretValue)
+  // The field empties as the request leaves, so the value is held only for this one call.
+  set(secretValue, '')
+  set(saving, true)
+  try {
+    const answer = await plugin.request(
+      'secrets.save',
+      {
+        group,
+        name: read(secretName),
+        value,
+        title: read(secretTitle),
+        service: read(secretService),
+        expires: read(secretExpires),
+        url: read(secretUrl)
+      },
+      { timeoutMs: 120_000 }
+    )
+    set(saved, answer)
+    if (answer.ok) {
+      set(secretName, '')
+      set(secretTitle, '')
+      set(secretService, '')
+      set(secretExpires, '')
+      set(secretUrl, '')
+      set(newGroup, '')
+      await loadGroups()
+    }
+  } catch (err) {
+    set(secretError, (err as Error).message)
+  } finally {
+    set(saving, false)
+  }
+}
+
+function SaveSecret() {
+  const list = read(groups)
+  const group = read(secretGroup)
+  const result = read(saved)
+  const problem = read(secretError)
+  const options = [
+    ...(list ?? []).map((name) => ({ value: name, label: name })),
+    { value: NEW_GROUP, label: 'New group…' }
+  ]
+  return (
+    <Collapsible
+      title="Save a secret"
+      description="Stored with `secrets save --stdin`: never in a terminal, the clipboard or this plugin."
+      onChange={(open) => {
+        if (open && read(groups) === null) void loadGroups()
+      }}
+    >
+      <Stack gap="sm">
+        <Select label="Group" value={group || undefined} options={options} onChange={(value) => set(secretGroup, value)} />
+        {group === NEW_GROUP ? (
+          <Input label="New group" placeholder="e.g. supabase" value={read(newGroup)} onChange={(value) => set(newGroup, value)} />
+        ) : null}
+        <Input label="Name" placeholder="e.g. SUPABASE_FOO_TOKEN" value={read(secretName)} onChange={(value) => set(secretName, value)} />
+        <Input label="Secret" type="password" value={read(secretValue)} onChange={(value) => set(secretValue, value)} onSubmit={() => void saveSecret()} />
+        <Input label="Title (optional)" placeholder="Supabase · API token (scope, owner)" value={read(secretTitle)} onChange={(value) => set(secretTitle, value)} />
+        <Input label="Service (optional)" placeholder="defaults to the group" value={read(secretService)} onChange={(value) => set(secretService, value)} />
+        <Input label="Expires (optional)" placeholder="YYYY-MM-DD" value={read(secretExpires)} onChange={(value) => set(secretExpires, value)} />
+        <Input label="URL (optional)" placeholder="where the token is managed" value={read(secretUrl)} onChange={(value) => set(secretUrl, value)} />
+        <Row gap="xs">
+          <Button icon="check" disabled={read(saving)} onPress={saveSecret}>
+            {read(saving) ? 'Saving…' : 'Save'}
+          </Button>
+        </Row>
+        {result ? (
+          <Callout tone={result.ok ? 'success' : 'danger'} title={result.ok ? 'Saved' : 'Not saved'}>
+            {result.lines.join('\n')}
+          </Callout>
+        ) : null}
+        {problem ? <Callout tone="danger">{problem}</Callout> : null}
+      </Stack>
+    </Collapsible>
+  )
+}
 
 async function refresh(): Promise<void> {
   try {
@@ -68,7 +179,13 @@ export default function Panel() {
   const message = read(error)
   const done = read(result)
   if (current !== null && current.workspace === null) {
-    return <EmptyState title="No workspace focused" description="Open a workspace to run a command in it." icon="terminal" />
+    return (
+      <Stack gap="md">
+        <EmptyState title="No workspace focused" description="Open a workspace to run a command in it." icon="terminal" />
+        <Separator />
+        <SaveSecret />
+      </Stack>
+    )
   }
   if (current === null) {
     return (
@@ -123,6 +240,8 @@ export default function Panel() {
           <Text muted size="xs">Pick one to put it back in the field; Enter runs it.</Text>
         </Stack>
       ) : null}
+      <Separator />
+      <SaveSecret />
     </Stack>
   )
 }
