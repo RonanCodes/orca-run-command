@@ -6,7 +6,7 @@ export type { TerminalChoice }
 export type RunState = {
   /** The focused workspace's name, or null when none is focused. */
   workspace: string | null
-  /** Where a command can go: shell terminals of the workspace, and a new tab where Orca allows. */
+  /** Where a command can go: the workspace's terminals that run a shell, not an agent. */
   terminals: TerminalChoice[]
   /** The terminal used last, when it is still there. */
   terminal: string | null

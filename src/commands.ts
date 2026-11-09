@@ -4,8 +4,6 @@
 /** How many recent commands the history keeps. Commands only: output is never stored. */
 export const MAX_HISTORY = 10
 export const MAX_COMMAND = 2000
-/** The panel's terminal choice that opens a fresh terminal tab, where Orca can (host API 1.3+). */
-export const NEW_TERMINAL = 'new'
 
 export type Terminal = { id: string; title?: string }
 export type TerminalChoice = { id: string; label: string }
@@ -54,22 +52,12 @@ export function shellTerminals(
   return terminals.filter((terminal) => !agents.has(terminal.id))
 }
 
-export function terminalChoices(shells: readonly Terminal[], canCreate: boolean): TerminalChoice[] {
-  const choices = shells.map((terminal) => ({
-    id: terminal.id,
-    label: terminal.title?.trim() || 'Terminal'
-  }))
-  return canCreate ? [{ id: NEW_TERMINAL, label: 'New terminal tab' }, ...choices] : choices
+export function terminalChoices(shells: readonly Terminal[]): TerminalChoice[] {
+  return shells.map((terminal) => ({ id: terminal.id, label: terminal.title?.trim() || 'Terminal' }))
 }
 
 /** The chosen terminal if it is still offered, else the first one offered, else null. */
 export function pickTerminal(choices: readonly TerminalChoice[], preferred: string | null): string | null {
   if (preferred && choices.some((choice) => choice.id === preferred)) return preferred
   return choices[0]?.id ?? null
-}
-
-/** A short tab title naming the command, for a new terminal tab. */
-export function terminalTitle(command: string): string {
-  const title = `! ${command}`
-  return title.length > 40 ? `${title.slice(0, 39)}…` : title
 }

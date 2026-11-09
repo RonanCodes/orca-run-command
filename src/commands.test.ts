@@ -2,14 +2,12 @@ import { assert, test } from 'orca/testing'
 import {
   CommandError,
   MAX_HISTORY,
-  NEW_TERMINAL,
   normalizeHistory,
   pickTerminal,
   readCommand,
   remember,
   shellTerminals,
-  terminalChoices,
-  terminalTitle
+  terminalChoices
 } from './commands'
 
 test('reads a command, with or without a leading !', () => {
@@ -49,11 +47,10 @@ test('never offers a terminal that runs an agent', () => {
     shells.map((terminal) => terminal.id),
     ['t2', 't3']
   )
-  assert.deepEqual(terminalChoices(shells, false), [
+  assert.deepEqual(terminalChoices(shells), [
     { id: 't2', label: 'zsh' },
     { id: 't3', label: 'Terminal' }
   ])
-  assert.equal(terminalChoices(shells, true)[0].id, NEW_TERMINAL)
 })
 
 test('picks the remembered terminal while it is still there', () => {
@@ -64,9 +61,4 @@ test('picks the remembered terminal while it is still there', () => {
   assert.equal(pickTerminal(choices, 't3'), 't3')
   assert.equal(pickTerminal(choices, 'gone'), 't2')
   assert.equal(pickTerminal([], 't3'), null)
-})
-
-test('names a new tab after the command', () => {
-  assert.equal(terminalTitle('pwd'), '! pwd')
-  assert.equal(terminalTitle('x'.repeat(80)).length, 40)
 })

@@ -18,8 +18,7 @@ in a terminal of the workspace you are in, without leaving the chat. Type `secre
   confirmation: nothing runs before you press it. A leading `!` is dropped, so `! pwd` works too.
 - **Pick the terminal.** It lists the workspace's terminal tabs that run a shell and remembers
   the one you used last. Tabs that run an agent are never offered, because typing into an agent
-  sends it a prompt. On an Orca that lets plugins open terminals (host API 1.3 and later), it
-  also offers **New terminal tab**, which runs the command in a fresh tab named after it.
+  sends it a prompt.
 - **Recent commands.** The last 10 commands, newest first. Pick one to put it back in the field;
   Enter runs it. **Clear** empties the list.
 - **Palette commands:** `Run Command: Run the last command again` and
@@ -34,7 +33,7 @@ used last. **It never reads or stores a command's output**, and it makes no netw
 
 | Capability | Why |
 | --- | --- |
-| `terminal:send` | Type the command into the terminal and press Enter (and open a new tab where Orca allows it). |
+| `terminal:send` | Type the command into the terminal and press Enter. |
 | `workspace:read` | List the focused workspace's terminal tabs. |
 | `agent:read` | Leave out the tabs that run an agent. |
 | `storage:own` | Keep the recent commands. |
@@ -59,8 +58,8 @@ orca plugin open run-command              # shows the panel in the right sidebar
 
 ## Known limits
 
-- On Orca 1.4.246 a plugin can only type into a terminal that is already open, so the workspace
-  needs one plain terminal tab first. A command typed into a terminal that is busy (a running
+- A plugin can only type into a terminal that is already open, so the workspace needs one plain
+  terminal tab first. A command typed into a terminal that is busy (a running
   program, an editor) goes to that program, as if you had typed it.
 - The command runs as if typed in that terminal, in its current directory and shell.
 - One line at a time: a pasted newline is refused, so a paste never runs extra commands.
