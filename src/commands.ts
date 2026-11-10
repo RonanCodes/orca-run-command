@@ -27,6 +27,36 @@ export function readCommand(typed: string): string {
   return command
 }
 
+/**
+ * True when the typed text starts with a space: like a shell with `HISTCONTROL=ignorespace`, the
+ * command runs but stays out of the recent list.
+ */
+export function skipsHistory(typed: string): boolean {
+  return /^[ \t]/.test(typed)
+}
+
+// Shapes that mean a command carries a credential. Matching any of them keeps the command out of
+// storage; it still runs, because the person typed it and pressed Enter.
+const SECRET_SHAPES: readonly RegExp[] = [
+  // NAME=value where the name says what it is: GITHUB_TOKEN=..., DB_PASSWORD=..., API_KEY=...
+  /\b[A-Za-z0-9_]*(?:TOKEN|SECRET|PASSWORD|PASSWD|PASSPHRASE|API_?KEY|ACCESS_?KEY|PRIVATE_?KEY|CREDENTIALS?)[A-Za-z0-9_]*=\S/i,
+  // --password=..., --token ..., -p'...' style flags with a value
+  /--(?:password|passwd|token|secret|api-key|access-key)(?:=|\s+)\S/i,
+  // Authorization headers
+  /\b(?:Bearer|Basic)\s+[A-Za-z0-9._~+/=-]{6,}/i,
+  // user:password@ in a URL
+  /:\/\/[^\s/:@]+:[^\s/@]+@/,
+  // Well-known token prefixes
+  /\b(?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|sk-[A-Za-z0-9_-]{20,}|xox[abposr]-[A-Za-z0-9-]{10,}|AKIA[0-9A-Z]{16}|glpat-[A-Za-z0-9_-]{20,}|eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.)/,
+  // aws ... secret_access_key <value>
+  /secret_access_key\s+\S{16,}/i
+]
+
+/** True when the command looks like it holds a credential, so it is never written to storage. */
+export function holdsSecret(command: string): boolean {
+  return SECRET_SHAPES.some((shape) => shape.test(command))
+}
+
 /** The history with `command` first, without duplicates, at most MAX_HISTORY long. */
 export function remember(history: readonly string[], command: string): string[] {
   return [command, ...history.filter((entry) => entry !== command)].slice(0, MAX_HISTORY)
@@ -39,7 +69,10 @@ export function forget(history: readonly string[], command: string): string[] {
 /** Whatever storage held, as a clean history list. */
 export function normalizeHistory(value: unknown): string[] {
   if (!Array.isArray(value)) return []
-  const commands = value.filter((entry): entry is string => typeof entry === 'string' && entry !== '')
+  // An older version may have kept a command with a credential in it: drop it on the way out.
+  const commands = value.filter(
+    (entry): entry is string => typeof entry === 'string' && entry !== '' && !holdsSecret(entry)
+  )
   return [...new Set(commands)].slice(0, MAX_HISTORY)
 }
 

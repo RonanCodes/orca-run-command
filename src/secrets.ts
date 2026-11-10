@@ -4,8 +4,8 @@
 export const NAME_RE = /^[A-Z][A-Z0-9_]+$/
 export const GROUP_RE = /^[a-z0-9][a-z0-9-]*$/
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/
-/** What `secrets save` accepts as a token: letters, digits, `_ - .`, 20 or more characters. */
-export const TOKEN_RE = /^[A-Za-z0-9_\-.]{20,}$/
+/** The longest value the form sends. */
+export const MAX_VALUE = 4096
 
 export type SecretForm = {
   group: string
@@ -32,7 +32,7 @@ export function saveArgs(form: SecretForm): string[] {
     throw new SecretFormError('Pick a group, or type one in lowercase letters, digits and dashes.')
   }
   if (!NAME_RE.test(name)) {
-    throw new SecretFormError('The name is upper case letters, digits and _, starting with a letter, e.g. SUPABASE_FOO_TOKEN.')
+    throw new SecretFormError('The name is upper case letters, digits and _, starting with a letter, e.g. EXAMPLE_API_TOKEN.')
   }
   const expires = clean(form.expires)
   if (expires !== '' && (!DATE_RE.test(expires) || Number.isNaN(Date.parse(expires)))) {
@@ -57,13 +57,13 @@ export function saveArgs(form: SecretForm): string[] {
   return args
 }
 
-/** Refuses a value `secrets save` would refuse, before anything runs. */
+/** One line of text, trimmed. The `secrets` command applies its own rules after this. */
 export function checkValue(value: string): string {
   const trimmed = value.trim()
-  if (!TOKEN_RE.test(trimmed)) {
-    throw new SecretFormError(
-      'That does not look like a token (letters, digits, _ - . only, 20 or more characters).'
-    )
+  if (trimmed === '') throw new SecretFormError('Paste the secret first.')
+  if (/[\r\n]/.test(trimmed)) throw new SecretFormError('The secret is one line.')
+  if (trimmed.length > MAX_VALUE) {
+    throw new SecretFormError(`Keep the secret under ${MAX_VALUE} characters.`)
   }
   return trimmed
 }
@@ -78,9 +78,13 @@ export function parseGroups(statusOutput: string): string[] {
   return groups
 }
 
-/** The lines of `secrets save` output worth showing; it never prints the value. */
-export function resultLines(output: string): string[] {
-  return output
+/**
+ * The last lines of `secrets save` output worth showing. A well-behaved command never prints the
+ * value; if one does, every copy of it is masked before it reaches the panel.
+ */
+export function resultLines(output: string, value = ''): string[] {
+  const masked = value === '' ? output : output.split(value).join('••••••')
+  return masked
     .split('\n')
     .map((line) => line.trim())
     .filter((line) => line !== '')

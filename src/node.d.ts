@@ -20,12 +20,17 @@ declare module 'node:child_process' {
 }
 
 declare module 'node:path' {
+  export const delimiter: string
   export function isAbsolute(path: string): boolean
   export function join(...parts: string[]): string
 }
 
-// Used by the tests only.
 declare module 'node:fs' {
+  export const constants: { X_OK: number }
+  export function accessSync(path: string, mode: number): void
+  export function statSync(path: string): { isFile(): boolean }
+  // Used by the tests only.
+  export function mkdirSync(path: string, options?: { recursive?: boolean }): void
   export function chmodSync(path: string, mode: number): void
   export function mkdtempSync(prefix: string): string
   export function readFileSync(path: string, encoding: 'utf8'): string
@@ -33,6 +38,7 @@ declare module 'node:fs' {
 }
 
 declare module 'node:os' {
+  export function homedir(): string
   export function tmpdir(): string
 }
 

@@ -13,11 +13,11 @@ writeFileSync(
     '#!/bin/sh',
     `printf '%s\\n' "$@" > "${dir}/argv"`,
     'if [ "$1" = "status" ]; then',
-    "  printf 'sentry  (1.0 h old)  /x/sentry.env\\n   ✓ SENTRY_API_KEY\\nplugin-e2e  (0.1 h old)  /x/p.env\\n'",
+    "  printf 'github  (1.0 h old)  /x/github.env\\n   ✓ GITHUB_TOKEN\\nplugin-e2e  (0.1 h old)  /x/p.env\\n'",
     '  exit 0',
     'fi',
     `cat > "${dir}/stdin"`,
-    "echo \"saved 'Fake' as Claude-managed/fakeid\"",
+    "echo \"saved 'Fake' as vault/fakeid\"",
     'echo "sync ok: 2 values"'
   ].join('\n')
 )
@@ -26,9 +26,15 @@ process.env.ORCA_RUN_COMMAND_SECRETS_BIN = fake
 
 const VALUE = 'tok_ABCdef0123456789xyz'
 
+test('says the secrets command is there', async () => {
+  const worker = await mountWorker(main, { host: mockHost() })
+  assert.deepEqual(await worker.request('secrets.available'), { available: true })
+  await worker.deactivate()
+})
+
 test('lists the groups from secrets status', async () => {
   const worker = await mountWorker(main, { host: mockHost() })
-  assert.deepEqual(await worker.request('secrets.groups'), { groups: ['sentry', 'plugin-e2e'] })
+  assert.deepEqual(await worker.request('secrets.groups'), { groups: ['github', 'plugin-e2e'] })
   await worker.deactivate()
 })
 
@@ -42,7 +48,7 @@ test('saves through stdin; the value is never in argv, storage, logs or the answ
     title: 'Test · API token'
   })
   assert.equal(answer.ok, true)
-  assert.deepEqual(answer.lines, ["saved 'Fake' as Claude-managed/fakeid", 'sync ok: 2 values'])
+  assert.deepEqual(answer.lines, ["saved 'Fake' as vault/fakeid", 'sync ok: 2 values'])
   const argv = readFileSync(join(dir, 'argv'), 'utf8')
   assert.equal(
     argv,

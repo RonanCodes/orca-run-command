@@ -27,12 +27,12 @@ function host(storage: Record<string, string | string[]> = {}) {
 test('types the command into the shell terminal and presses Enter', async () => {
   const orca = host()
   const worker = await mountWorker(main, { host: orca })
-  const answer = await worker.request('run.exec', { command: '! secrets status', terminal: 't2' })
+  const answer = await worker.request('run.exec', { command: '! git status', terminal: 't2' })
   assert.equal(answer.ranIn, 'zsh')
   assert.deepEqual(orca.callsOf('terminal.sendText'), [
-    { terminalId: 't2', text: 'secrets status', enter: true }
+    { terminalId: 't2', text: 'git status', enter: true }
   ])
-  assert.deepEqual(answer.history, ['secrets status'])
+  assert.deepEqual(answer.history, ['git status'])
   assert.deepEqual(worker.refusals, [])
   await worker.deactivate()
 })
@@ -64,10 +64,41 @@ test('state lists only shell terminals and the history', async () => {
 })
 
 test('the palette command runs the last command again', async () => {
-  const orca = host({ history: ['secrets status'], terminal: 't2' })
+  const orca = host({ history: ['git status'], terminal: 't2' })
   const worker = await mountWorker(main, { host: orca })
   const said = await worker.command('run.again')
-  assert.equal(said, 'Ran in zsh: secrets status')
+  assert.equal(said, 'Ran in zsh: git status')
   assert.equal(orca.callsOf('terminal.sendText').length, 1)
+  await worker.deactivate()
+})
+
+test('runs a command that holds a secret but never stores it', async () => {
+  const orca = host({ history: ['ls'] })
+  const worker = await mountWorker(main, { host: orca })
+  const answer = await worker.request('run.exec', { command: 'export API_TOKEN=abcdef123456', terminal: 't2' })
+  assert.equal(orca.callsOf('terminal.sendText').length, 1)
+  assert.equal(answer.kept, false)
+  assert.deepEqual(answer.history, ['ls'])
+  assert.ok(!JSON.stringify(orca.data()).includes('abcdef123456'))
+  await worker.deactivate()
+})
+
+test('a leading space runs the command without keeping it', async () => {
+  const orca = host()
+  const worker = await mountWorker(main, { host: orca })
+  const answer = await worker.request('run.exec', { command: ' git status', terminal: 't2' })
+  assert.deepEqual(orca.callsOf('terminal.sendText'), [{ terminalId: 't2', text: 'git status', enter: true }])
+  assert.equal(answer.kept, false)
+  assert.deepEqual(answer.history, [])
+  await worker.deactivate()
+})
+
+test('says why when the terminal refuses the command', async () => {
+  const orca = mockHost({
+    results: { 'workspace.readContext': context, 'agents.list': agents, 'terminal.sendText': { accepted: false } }
+  })
+  const worker = await mountWorker(main, { host: orca })
+  await assert.rejects(worker.request('run.exec', { command: 'pwd', terminal: 't2' }), /did not take/)
+  assert.deepEqual(orca.data().storage, {})
   await worker.deactivate()
 })

@@ -1,20 +1,22 @@
 // The plugin's worker: types a command into a terminal of the focused workspace and keeps a short
-// history of the commands (never their output). Orca transpiles this file; no build step.
+// history of the commands (never their output, never one that looks like it holds a secret). Orca transpiles this file; no build step.
 import type { OrcaWorkerApi } from 'orca/worker'
 import {
   CommandError,
   forget,
+  holdsSecret,
   normalizeHistory,
   pickTerminal,
   readCommand,
   remember,
   shellTerminals,
+  skipsHistory,
   terminalChoices,
   type TerminalChoice
 } from './commands'
 import type { RunState } from './protocol'
 import { checkValue, parseGroups, resultLines, saveArgs } from './secrets'
-import { secretsSave, secretsStatus } from './secrets-cli'
+import { secretsBin, secretsSave, secretsStatus } from './secrets-cli'
 
 const HISTORY = 'history'
 const LAST_TERMINAL = 'terminal'
@@ -55,7 +57,9 @@ export default function activate(orca: OrcaWorkerApi): void {
     }
   }
 
-  async function exec(typed: string, chosen: string | null | undefined): Promise<string> {
+  type Ran = { ranIn: string; command: string; kept: boolean }
+
+  async function exec(typed: string, chosen: string | null | undefined): Promise<Ran> {
     const command = readCommand(typed)
     const context = await orca.host.call('workspace.readContext', {})
     if (!context) throw new CommandError('Focus a workspace first.')
@@ -75,14 +79,16 @@ export default function activate(orca: OrcaWorkerApi): void {
     if (!accepted) throw new CommandError('That terminal did not take the command.')
     const ranIn = choices.find((choice) => choice.id === target)?.label ?? 'Terminal'
     await orca.storage.set(LAST_TERMINAL, target)
-    await orca.storage.set(HISTORY, remember(await history(), command))
-    return ranIn
+    // The command is kept only when it is safe to keep: never one that looks like a credential.
+    const kept = !skipsHistory(typed) && !holdsSecret(command)
+    if (kept) await orca.storage.set(HISTORY, remember(await history(), command))
+    return { ranIn, command, kept }
   }
 
   orca.panels.handle('run.state', () => state())
   orca.panels.handle('run.exec', async ({ command, terminal }) => {
-    const ranIn = await exec(command, terminal)
-    return { ranIn, history: await history() }
+    const { ranIn, kept } = await exec(command, terminal)
+    return { ranIn, kept, history: await history() }
   })
   orca.panels.handle('run.forget', async ({ command }) => {
     const next = forget(await history(), command)
@@ -95,11 +101,13 @@ export default function activate(orca: OrcaWorkerApi): void {
   })
 
   // Save a secret: the value arrives here, goes to the child's stdin, and is never stored or logged.
+  orca.panels.handle('secrets.available', () => ({ available: secretsBin() !== null }))
   orca.panels.handle('secrets.groups', async () => ({ groups: parseGroups(await secretsStatus()) }))
   orca.panels.handle('secrets.save', async ({ value, ...form }) => {
     const args = saveArgs(form)
-    const result = await secretsSave(args, checkValue(value))
-    const lines = resultLines(result.code === 0 ? result.stdout : `${result.stdout}\n${result.stderr}`)
+    const secret = checkValue(value)
+    const result = await secretsSave(args, secret)
+    const lines = resultLines(result.code === 0 ? result.stdout : `${result.stdout}\n${result.stderr}`, secret)
     orca.log(`secrets save ${form.name} in ${form.group}: exit ${result.code}`)
     return { ok: result.code === 0, lines }
   })
@@ -109,7 +117,7 @@ export default function activate(orca: OrcaWorkerApi): void {
     const [last] = await history()
     if (!last) return 'No command to run again yet. Open the Run Command panel to run one.'
     try {
-      return `Ran in ${await exec(last, null)}: ${last}`
+      return `Ran in ${(await exec(last, null)).ranIn}: ${last}`
     } catch (error) {
       return (error as Error).message
     }

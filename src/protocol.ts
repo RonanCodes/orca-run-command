@@ -20,10 +20,14 @@ declare module 'orca' {
     /** Runs one command in the chosen terminal (or the last one used) and answers where it ran. */
     'run.exec': {
       input: { command: string; terminal?: string | null }
-      output: { ranIn: string; history: string[] }
+      /** `kept` is false when the command stayed out of the history (a leading space, or it
+       *  looked like it held a secret). */
+      output: { ranIn: string; history: string[]; kept: boolean }
     }
     'run.forget': { input: { command: string }; output: { history: string[] } }
     'run.clearHistory': { output: { history: string[] } }
+    /** Whether an optional `secrets` command is on PATH; the Save a secret section shows only then. */
+    'secrets.available': { output: { available: boolean } }
     /** The groups `secrets status` lists (names only). */
     'secrets.groups': { output: { groups: string[] } }
     /** Saves one secret with `secrets save ... --stdin`; the value goes to its stdin only. */

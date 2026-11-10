@@ -1,12 +1,14 @@
 import { assert, test } from 'orca/testing'
 import {
   CommandError,
+  holdsSecret,
   MAX_HISTORY,
   normalizeHistory,
   pickTerminal,
   readCommand,
   remember,
   shellTerminals,
+  skipsHistory,
   terminalChoices
 } from './commands'
 
@@ -36,6 +38,7 @@ test('keeps the newest commands first, without duplicates', () => {
 test('cleans whatever storage held', () => {
   assert.deepEqual(normalizeHistory(null), [])
   assert.deepEqual(normalizeHistory(['a', 3, '', 'a', 'b']), ['a', 'b'])
+  assert.deepEqual(normalizeHistory(['ls', 'export API_TOKEN=abc123']), ['ls'])
 })
 
 test('never offers a terminal that runs an agent', () => {
@@ -61,4 +64,33 @@ test('picks the remembered terminal while it is still there', () => {
   assert.equal(pickTerminal(choices, 't3'), 't3')
   assert.equal(pickTerminal(choices, 'gone'), 't2')
   assert.equal(pickTerminal([], 't3'), null)
+})
+
+test('keeps an ordinary command in the history', () => {
+  for (const command of ['git status', 'pnpm test', 'ls -la', 'echo $HOME', 'export EDITOR=vim']) {
+    assert.equal(holdsSecret(command), false, command)
+  }
+})
+
+test('never keeps a command that looks like it holds a secret', () => {
+  for (const command of [
+    'export GITHUB_TOKEN=ghp_abcdefghijklmnopqrstuvwxyz0123456789',
+    'API_KEY=abc123 ./deploy.sh',
+    'export DB_PASSWORD="hunter2"',
+    'curl -H "Authorization: Bearer abc.def.ghi" https://example.com',
+    'mysql -u root --password=hunter2',
+    'git clone https://user:s3cret@example.com/repo.git',
+    'echo sk-proj-abcdefghijklmnopqrstuvwxyz012345',
+    'aws configure set aws_secret_access_key wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY',
+    'echo xoxb-1234567890-abcdefghij'
+  ]) {
+    assert.equal(holdsSecret(command), true, command)
+  }
+})
+
+test('a command typed with a leading space stays out of the history, as in a shell', () => {
+  assert.equal(skipsHistory(' git status'), true)
+  assert.equal(skipsHistory(' ! git status'), true)
+  assert.equal(skipsHistory('git status'), false)
+  assert.equal(skipsHistory('! git status'), false)
 })

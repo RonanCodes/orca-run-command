@@ -1,10 +1,16 @@
-// Runs the `secrets` command for the worker. Node's child_process with an argument list, never a
-// shell string, and the secret only ever goes to the child's stdin.
+// Runs an optional `secrets` command for the worker's Save a secret section. Node's child_process
+// with an argument list, never a shell string, and the secret only ever goes to the child's stdin.
+//
+// Nothing here runs at load: `secretsBin` only looks for an executable file on PATH, and the
+// command itself starts only when the person opens the section (status) or presses Save.
 import { spawn } from 'node:child_process'
-import { isAbsolute } from 'node:path'
+import { accessSync, constants, statSync } from 'node:fs'
+import { homedir } from 'node:os'
+import { delimiter, isAbsolute, join } from 'node:path'
 
-/** An absolute path here wins over looking `secrets` up, for tests and unusual setups. */
-const OVERRIDE = 'ORCA_RUN_COMMAND_SECRETS_BIN'
+/** An absolute path here wins over looking `secrets` up on PATH, for tests and unusual setups. */
+export const OVERRIDE = 'ORCA_RUN_COMMAND_SECRETS_BIN'
+const COMMAND = 'secrets'
 const TIMEOUT_MS = 110_000
 
 export type CliResult = { code: number; stdout: string; stderr: string }
@@ -30,31 +36,50 @@ function run(file: string, args: readonly string[], input: string | null, timeou
   })
 }
 
-let resolved: string | null = null
+function isExecutable(path: string): boolean {
+  try {
+    accessSync(path, constants.X_OK)
+    return statSync(path).isFile()
+  } catch {
+    return false
+  }
+}
 
 /**
- * Where `secrets` lives. Orca is a GUI app, so its PATH is not the terminal's: ask the person's
- * own shell, the way their terminal finds it. Only the command's path comes back.
+ * Where `secrets` lives, or null when it is not installed. It reads PATH (Orca passes on the
+ * login shell's PATH) and a few usual install folders; it never starts a shell to ask.
  */
-async function secretsBin(): Promise<string> {
-  const override = process.env[OVERRIDE]
-  if (override && isAbsolute(override)) return override
-  if (resolved) return resolved
-  const shell = process.env.SHELL && isAbsolute(process.env.SHELL) ? process.env.SHELL : '/bin/zsh'
-  const found = await run(shell, ['-ilc', 'command -v secrets'], null, 15_000)
-  const path = found.stdout.split('\n').map((line) => line.trim()).filter((line) => isAbsolute(line)).pop()
-  if (!path) throw new Error('Could not find the `secrets` command in your shell.')
-  resolved = path
-  return path
+export function secretsBin(env: Record<string, string | undefined> = process.env): string | null {
+  const override = env[OVERRIDE]
+  if (override) return isAbsolute(override) && isExecutable(override) ? override : null
+  const home = env.HOME || homedir()
+  const folders = [
+    ...(env.PATH ?? '').split(delimiter),
+    join(home, '.local', 'bin'),
+    join(home, 'bin'),
+    '/opt/homebrew/bin',
+    '/usr/local/bin'
+  ].filter((folder) => isAbsolute(folder))
+  for (const folder of new Set(folders)) {
+    const candidate = join(folder, COMMAND)
+    if (isExecutable(candidate)) return candidate
+  }
+  return null
+}
+
+function requireBin(): string {
+  const bin = secretsBin()
+  if (!bin) throw new Error('No `secrets` command found on PATH.')
+  return bin
 }
 
 export async function secretsStatus(): Promise<string> {
-  const result = await run(await secretsBin(), ['status'], null, 15_000)
+  const result = await run(requireBin(), ['status'], null, 15_000)
   if (result.code !== 0) throw new Error('`secrets status` failed.')
   return result.stdout
 }
 
 /** `secrets save ... --stdin` with the value on stdin. */
 export async function secretsSave(args: readonly string[], value: string): Promise<CliResult> {
-  return run(await secretsBin(), args, `${value}\n`)
+  return run(requireBin(), args, `${value}\n`)
 }
