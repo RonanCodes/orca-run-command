@@ -20,6 +20,6 @@ export default defineCheck({
   },
   withHistory: {
     results: { 'workspace.readContext': context, 'agents.list': agents },
-    storage: { history: ['secrets status', 'git status', 'pnpm test'], terminal: 't2' }
+    storage: { history: ['git status', 'pnpm test', 'docker compose up -d'], terminal: 't2' }
   }
 })
