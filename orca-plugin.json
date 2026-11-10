@@ -1,9 +1,10 @@
 {
+  "$schema": "https://raw.githubusercontent.com/stablyai/orca/main/docs/schemas/plugins/orca-plugin.v2.schema.json",
   "manifestVersion": 2,
   "id": "run-command",
   "name": "Run Command",
-  "version": "0.1.0",
-  "description": "Type a one-off shell command in a sidebar panel and run it in a terminal of the current workspace, without leaving the chat. A stopgap for `!` commands in Orca's chat view.",
+  "version": "0.2.0",
+  "description": "Type a shell command in the sidebar, press Enter, and it runs in a terminal of the current workspace without leaving your chat. Keeps recent commands, never their output or anything that looks like a secret.",
   "author": {
     "name": "Ronan Connolly",
     "url": "https://github.com/RonanCodes"
@@ -18,10 +19,18 @@
   "pluginApi": 1,
   "main": "src/worker.ts",
   "capabilities": [
-    { "kind": "storage:own" },
-    { "kind": "workspace:read" },
-    { "kind": "agent:read" },
-    { "kind": "terminal:send" }
+    {
+      "kind": "storage:own"
+    },
+    {
+      "kind": "workspace:read"
+    },
+    {
+      "kind": "agent:read"
+    },
+    {
+      "kind": "terminal:send"
+    }
   ],
   "contributes": {
     "panels": [
@@ -34,8 +43,16 @@
       }
     ],
     "commands": [
-      { "id": "run.again", "title": "Run Command: Run the last command again", "when": "workspace" },
-      { "id": "run.history", "title": "Run Command: Show recent commands" }
+      {
+        "id": "run.again",
+        "title": "Run Command: Run the last command again",
+        "when": "workspace"
+      },
+      {
+        "id": "run.history",
+        "title": "Run Command: Show recent commands"
+      }
     ]
-  }
+  },
+  "icon": "assets/icon.png"
 }

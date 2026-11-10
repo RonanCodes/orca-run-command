@@ -1,0 +1,15 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+html,body{margin:0;padding:0;background:transparent}
+.tile{width:256px;height:256px;border-radius:56px;box-sizing:border-box;
+  background:linear-gradient(145deg,#2b3446 0%,#151a24 100%);
+  display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden}
+.tile::before{content:"";position:absolute;inset:0;border-radius:56px;box-shadow:inset 0 2px 0 rgba(255,255,255,.12),inset 0 -2px 0 rgba(0,0,0,.35)}
+svg{width:168px;height:168px}
+</style></head><body><div class="tile">
+<svg viewBox="0 0 100 100" fill="none" stroke-linecap="round" stroke-linejoin="round">
+  <path d="M18 30 L40 50 L18 70" stroke="#7ee0a8" stroke-width="10"/>
+  <path d="M50 72 H84" stroke="#e8edf5" stroke-width="10"/>
+  <path d="M74 18 V40" stroke="#ffcf5c" stroke-width="10"/>
+  <circle cx="74" cy="53" r="5.5" fill="#ffcf5c" stroke="none"/>
+</svg></div></body></html>
